@@ -1,0 +1,93 @@
+# 🎯 DOCKER COMPOSE - Orchestration de tous les services
+# Ce fichier permet de lancer TOUT le projet avec une seule commande : docker-compose up
+
+services:
+  # 📦 BASE DE DONNÉES PostgreSQL
+  # Stocke : utilisateurs, incidents, décisions, audit logs, pièces jointes (métadonnées)
+  db:
+    image: postgres:15-alpine  # Version légère et rapide
+    container_name: hackforhope_db
+    restart: always
+    environment:
+      POSTGRES_USER: hackforhope
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: hackforhope_db
+      POSTGRES_HOST_AUTH_METHOD: md5
+    ports:
+      - "5432:5432"  # Accessible depuis votre machine sur localhost:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persistance des données
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql  # Script d'initialisation automatique
+    networks:
+      - hackforhope_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hackforhope"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  #  BACKEND (API NestJS)
+  # Gère : authentification, RBAC, CRUD incidents, upload fichiers, audit logs
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hackforhope_backend
+    restart: always
+    environment:
+      NODE_ENV: development
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: hackforhope
+      DB_PASSWORD: admin
+      DB_NAME: hackforhope_db
+      DATABASE_URL: postgresql://hackforhope:admin@db:5432/hackforhope_db
+      JWT_SECRET: your_super_secret_jwt_key_change_in_production
+      PORT: 3001
+    ports:
+      - "3001:3001"  # API accessible sur http://localhost:3001
+    volumes:
+      - ./backend:/app  # Hot reload pendant le développement
+      - /app/node_modules  # Évite de monter node_modules de l'hôte
+      - uploads_data:/app/uploads  # Stockage des pièces jointes
+    depends_on:
+      db:
+        condition: service_healthy  # Attend que PostgreSQL soit prêt
+    networks:
+      - hackforhope_network
+    command: npm run start:dev  # Mode développement avec hot reload
+
+  # 🎨 FRONTEND (Next.js)
+  # Interface utilisateur : pages login, dashboard, incidents, rapports
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hackforhope_frontend
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001  # URL de l'API backend
+      NODE_ENV: development
+    ports:
+      - "3000:3000"  # Application accessible sur http://localhost:3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next  # Cache Next.js
+    depends_on:
+      - backend  # Attend que le backend soit prêt
+    networks:
+      - hackforhope_network
+    command: npm run dev
+
+# 💾 VOLUMES PERSISTANTS
+# Garde les données même après arrêt des conteneurs
+volumes:
+  postgres_data:  # Données PostgreSQL
+  uploads_data:   # Fichiers uploadés (photos, audio, vidéos)
+
+# 🌐 RÉSEAU INTERNE
+# Permet la communication entre conteneurs
+networks:
+  hackforhope_network:
+    driver: bridge

@@ -1,0 +1,35 @@
+# Dépendances
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Next.js
+.next/
+out/
+build/
+
+# NestJS
+dist/
+.nest/
+
+# Environnement
+.env
+.env.local
+.env*.local
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (fichiers utilisateurs)
+backend/uploads/*
+!backend/uploads/.gitkeep
